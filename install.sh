@@ -59,7 +59,9 @@ sed -i "s/hostname: .*/hostname: ${FQDN}/" compose.yaml
 ############################ 5. 启动容器 ############################
 log "启动 mailserver 容器"
 docker compose up -d
-until docker exec mailserver ss -ln | grep -q :25; do sleep 2; done
+# 等容器把 25 端口映射出来即可
+until docker port mailserver 25 >/dev/null 2>&1; do sleep 2; done
+log "mailserver 端口 25 已就绪"
 
 ############################ 6. 账号 & catch-all ############################
 PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)

@@ -28,16 +28,19 @@ if ! command -v docker &>/dev/null; then
   apt-get update -qq
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 fi
+############################ 3. 安装 GitHub CLI（可选） ############################
 if ! command -v gh &>/dev/null; then
   log "安装 GitHub CLI"
-  ($SUDO mkdir -p -m 755 /etc/apt/keyrings
-   out=$(mktemp)
-   wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg
-   $SUDO tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null <"$out"
-   $SUDO chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-     | $SUDO tee /etc/apt/sources.list.d/github-cli.list >/dev/null
-   $SUDO apt-get update -qq && $SUDO apt-get install -y gh) || warn "GitHub CLI 安装失败，跳过"
+  (
+    mkdir -p -m 755 /etc/apt/keyrings
+    out=$(mktemp)
+    wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg
+    tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null <"$out"
+    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list
+    apt-get update -qq && apt-get install -y gh
+  ) || warn "GitHub CLI 安装失败，跳过"
 fi
 
 mkdir -p mailserver
@@ -55,7 +58,7 @@ log "创建邮箱账号: ${MAIL_USER}@${DOMAIN}  密码: ${PASS}"
 docker exec -i mailserver setup email add "${MAIL_USER}@${DOMAIN}" "${PASS}"
 log "创建 catch-all 别名: @${DOMAIN} -> ${MAIL_USER}@${DOMAIN}"
 docker exec -i mailserver setup alias add "@${DOMAIN}" "${MAIL_USER}@${DOMAIN}"
-cd "$(dirname "$0")" || exit 1
+cd ..
 chmod +x gost
 chmod +x ser
 [ -f conf.yaml ] && {

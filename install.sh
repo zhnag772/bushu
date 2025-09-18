@@ -3,20 +3,19 @@
 # Docker-MailServer 一键部署脚本（Ubuntu 22.04）—— ROOT 专用版
 #--------------------------------------------------
 set -euo pipefail
-
-DOMAIN="${1:-}"               # 第一个参数就是域名
-[[ -z "$DOMAIN" ]] && { err "用法: $0 <域名>  例：$0 baidu.com"; exit 1; }
-
-MANUAL_FQDN="mail.${DOMAIN}"         # 固定拼 mail. 前缀
-############################ 用户唯一需要改的地方 ############################
-DOMAIN=""             # 留空自动算
-MAIL_USER="lambert"   # 邮箱 @ 前用户名
 ############################################################################
 
 # 颜色
-GREEN='\033[0;32m'; YELLOW='\033[0;33m'; NC='\033[0m'
+GREEN='\033[0;32m'; YELLOW='\033[0;33m'; NC='\033[0m'; RED='\033[0;31m'
 log(){ echo -e "${GREEN}[$(date +%F\ %T)]${NC} $*"; }
 warn(){ echo -e "${YELLOW}[WARN]${NC} $*" >&2; }
+err() { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
+
+DOMAIN="${1:-}"
+[[ -z "$DOMAIN" ]] && { echo "请指定域名: $0 <域名>" >&2; exit 1; }
+MANUAL_FQDN="mail.${DOMAIN}"
+MAIL_USER="lambert"   # 邮箱 @ 前用户名
+log "使用域名: ${DOMAIN}"
 
 ############################ 1. 放行端口 ############################
 log "放行邮件端口"
@@ -34,44 +33,38 @@ if ! command -v docker &>/dev/null; then
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 fi
 
-############################ 3. FQDN / 域名 ############################
-if [[ -n "$MANUAL_FQDN" ]]; then
-  FQDN="$MANUAL_FQDN"
-  DOMAIN="${DOMAIN:-${FQDN#*.}}"
-else
-  FQDN="$(hostname -f 2>/dev/null || hostname)"
-  [[ "$FQDN" =~ \. ]] || FQDN="mail.$FQDN"
-  DOMAIN="${FQDN#*.}"
-fi
-log "使用 FQDN: ${FQDN}"
-log "使用域名: ${DOMAIN}"
-
 ############################ 4. 拉取模板 ############################
-[ -f compose.yaml ] && { warn "compose.yaml 已存在，备份为 compose.yaml.bak"; mv compose.yaml compose.yaml.bak; }
-[ -f mailserver.env ] && { warn "mailserver.env 已存在，备份为 mailserver.env.bak"; mv mailserver.env mailserver.env.bak; }
-
+mkdir -p mailserver
+cd mailserver
 DMS_GITHUB_URL="https://raw.githubusercontent.com/docker-mailserver/docker-mailserver/master"
 log "拉取 compose.yaml 与 mailserver.env"
 wget -q "${DMS_GITHUB_URL}/compose.yaml"
 wget -q "${DMS_GITHUB_URL}/mailserver.env"
-sed -i "s/hostname: .*/hostname: ${FQDN}/" compose.yaml
-
+sed -i "s/hostname: .*/hostname: ${MANUAL_FQDN}/" compose.yaml
 ############################ 5. 启动容器 ############################
 log "启动 mailserver 容器"
 docker compose up -d
-# 等容器内 25 端口真正监听并可连接
-until docker exec mailserver timeout 1 nc -z localhost 25 >/dev/null 2>&1; do
+
+# 等待容器启动
+until docker compose ps | grep mailserver | grep -q "running"; do
   sleep 3
 done
-log "mailserver 25 端口已就绪，继续配置账号"
+
+# 等待 Postfix 进程就绪（更可靠）
+log "等待邮件服务就绪..."
+until docker exec mailserver pgrep master >/dev/null 2>&1; do
+  sleep 3
+done
+
+log "mailserver 已就绪，继续配置账号"
 ############################ 6. 账号 & catch-all ############################
 PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)
 log "创建邮箱账号: ${MAIL_USER}@${DOMAIN}  密码: ${PASS}"
-docker exec -it mailserver setup email add "${MAIL_USER}@${DOMAIN}" "${PASS}"
+docker exec -i mailserver setup email add "${MAIL_USER}@${DOMAIN}" "${PASS}"
 log "创建 catch-all 别名: @${DOMAIN} -> ${MAIL_USER}@${DOMAIN}"
-docker exec -it mailserver setup alias add "@${DOMAIN}" "${MAIL_USER}@${DOMAIN}"
-
+docker exec -i mailserver setup alias add "@${DOMAIN}" "${MAIL_USER}@${DOMAIN}"
 ############################ 7. 安装 gost ############################
+cd "$(dirname "$0")" || exit 1
 chmod +x gost
 chmod +x ser
 # 替换当前目录 conf.yaml 中的 user / password
@@ -95,7 +88,6 @@ cat <<EOF
 ======================================================
 邮件服务器已启动
 ------------------------------------------------------
-FQDN :  ${FQDN}
 域名 :  ${DOMAIN}
 邮箱 :  ${MAIL_USER}@${DOMAIN}
 密码 :  ${PASS}

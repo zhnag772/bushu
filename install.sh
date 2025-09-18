@@ -45,18 +45,34 @@ sed -i "s/hostname: .*/hostname: ${MANUAL_FQDN}/" compose.yaml
 log "启动 mailserver 容器"
 docker compose up -d
 
-# 等待容器启动
+# 冷静期：等待容器稳定
+sleep 5
+
+# 等待运行状态
 until docker compose ps | grep mailserver | grep -q "running"; do
   sleep 3
 done
 
-# 等待 Postfix 进程就绪（更可靠）
-log "等待邮件服务就绪..."
+# 🔥 关键：给 DMS 初始化时间（首次运行会生成密钥，很慢）
+log "等待邮件服务初始化（可能需要 20-30 秒）..."
+sleep 25
+
+# 检查 Postfix 是否真正运行
+log "等待 Postfix 启动..."
 until docker exec mailserver pgrep master >/dev/null 2>&1; do
+  log "Postfix 未启动，继续等待..."
+  # 可选：输出日志帮助调试
+  # docker logs mailserver | tail -n 10
+  sleep 5
+done
+
+# 检查是否出现“启动完成”标志
+log "检查服务是否完全就绪..."
+until docker logs mailserver 2>&1 | grep -qi "is up\|thawed\|started"; do
   sleep 3
 done
 
-log "mailserver 已就绪，继续配置账号"
+log "✅ mailserver 已完全就绪，继续配置账号"
 ############################ 6. 账号 & catch-all ############################
 PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)
 log "创建邮箱账号: ${MAIL_USER}@${DOMAIN}  密码: ${PASS}"

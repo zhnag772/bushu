@@ -44,28 +44,6 @@ sed -i "s/hostname: .*/hostname: ${MANUAL_FQDN}/" compose.yaml
 ############################ 5. 启动容器 ############################
 log "启动 mailserver 容器"
 docker compose up -d
-
-# 等待容器运行（快速检查）
-until docker compose ps | grep mailserver | grep -q "running"; do
-  log "docker compose ps 等待邮件服务就绪..."
-  sleep 3
-done
-
-log "等待邮件服务就绪..."
-
-# 检查日志中出现“启动完成”标志
-until docker logs mailserver 2>&1 | grep -qi "mailserver is up and running\|saslauthd.*started\|thawed\|postfix\/master.*running"; do
-  log "docker logs mailserver 等待邮件服务就绪..."
-  sleep 3
-done
-
-# 再确认主进程存在（用 pidof）
-until docker exec mailserver pidof master >/dev/null 2>&1; do
-  log "docker exec mailserver pidof master 等待邮件服务主进程启动..."
-  sleep 3
-done
-
-log "✅ mailserver 已完全就绪"
 ############################ 6. 账号 & catch-all ############################
 PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)
 log "创建邮箱账号: ${MAIL_USER}@${DOMAIN}  密码: ${PASS}"

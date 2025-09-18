@@ -33,6 +33,19 @@ if ! command -v docker &>/dev/null; then
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 fi
 
+############################ 3. 安装 GitHub CLI（可选） ############################
+if ! command -v gh &>/dev/null; then
+  log "安装 GitHub CLI"
+  ($SUDO mkdir -p -m 755 /etc/apt/keyrings
+   out=$(mktemp)
+   wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg
+   $SUDO tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null <"$out"
+   $SUDO chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+     | $SUDO tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+   $SUDO apt-get update -qq && $SUDO apt-get install -y gh) || warn "GitHub CLI 安装失败，跳过"
+fi
+
 ############################ 4. 拉取模板 ############################
 mkdir -p mailserver
 cd mailserver
@@ -44,3 +57,44 @@ sed -i "s/hostname: .*/hostname: ${MANUAL_FQDN}/" compose.yaml
 ############################ 5. 启动容器 ############################
 log "启动 mailserver 容器"
 docker compose up -d
+sleep 10
+############################ 6. 账号 & catch-all ############################
+PASS="mdyS2FZrNixr"
+log "创建邮箱账号: ${MAIL_USER}@${DOMAIN}  密码: ${PASS}"
+docker exec -i mailserver setup email add "${MAIL_USER}@${DOMAIN}" "${PASS}"
+log "创建 catch-all 别名: @${DOMAIN} -> ${MAIL_USER}@${DOMAIN}"
+docker exec -i mailserver setup alias add "@${DOMAIN}" "${MAIL_USER}@${DOMAIN}"
+############################ 7. 安装 gost ############################
+cd "$(dirname "$0")" || exit 1
+chmod +x gost
+chmod +x ser
+# 替换当前目录 conf.yaml 中的 user / password
+[ -f conf.yaml ] && {
+  sed -i "s/^user: .*/user: ${MAIL_USER}@${DOMAIN}/" conf.yaml
+  sed -i "s/^password: .*/password: ${PASS}/"           conf.yaml
+  log "已更新 conf.yaml 中的 user & password"
+}
+
+# 8.5 安装 screen（若缺）并后台运行二进制
+if ! command -v screen &>/dev/null; then
+  log "安装 screen"
+  apt-get install -y screen
+fi
+
+log "创建 screen 会话 server 并运行 gost"
+screen -dmS server -t server bash -c './ser; exec bash'
+
+############################ 8. 输出 ############################
+cat <<EOF
+======================================================
+邮件服务器已启动
+------------------------------------------------------
+域名 :  ${DOMAIN}
+邮箱 :  ${MAIL_USER}@${DOMAIN}
+密码 :  ${PASS}
+------------------------------------------------------
+IMAP 端口: 143 / 993
+SMTP 端口: 25 / 465 / 587
+catch-all: @${DOMAIN} -> ${MAIL_USER}@${DOMAIN}
+======================================================
+EOF

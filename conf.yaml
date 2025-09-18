@@ -1,4 +1,5 @@
 user: abcd@test.com
 password: 123456a
-server: 127.0.0.1
+server: 149.104.2.234
 port: 8888
+

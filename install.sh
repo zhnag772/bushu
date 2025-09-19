@@ -22,8 +22,8 @@ if ! command -v docker &>/dev/null; then
   log "安装 Docker"
   apt-get update -qq
   apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg  | gpg --dearmor -o /usr/share/keyrings/docker.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu  $(lsb_release -cs) stable" \
     > /etc/apt/sources.list.d/docker.list
   apt-get update -qq
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
@@ -34,10 +34,10 @@ if ! command -v gh &>/dev/null; then
   (
     mkdir -p -m 755 /etc/apt/keyrings
     out=$(mktemp)
-    wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg
+    wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg 
     tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null <"$out"
     chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages  stable main" \
       > /etc/apt/sources.list.d/github-cli.list
     apt-get update -qq && apt-get install -y gh
   ) || warn "GitHub CLI 安装失败，跳过"
@@ -45,7 +45,7 @@ fi
 
 mkdir -p mailserver
 cd mailserver
-DMS_GITHUB_URL="https://raw.githubusercontent.com/docker-mailserver/docker-mailserver/master"
+DMS_GITHUB_URL="https://raw.githubusercontent.com/docker-mailserver/docker-mailserver/master "
 log "拉取 compose.yaml 与 mailserver.env"
 wget -q "${DMS_GITHUB_URL}/compose.yaml"
 wget -q "${DMS_GITHUB_URL}/mailserver.env"
@@ -72,9 +72,6 @@ if ! command -v screen &>/dev/null; then
   apt-get install -y screen
 fi
 
-log "创建 screen 会话 server 并运行 gost"
-screen -dmS server -t server bash -c './ser; exec bash'
-
 cat <<EOF
 ======================================================
 邮件服务器已启动
@@ -88,3 +85,19 @@ SMTP 端口: 25 / 465 / 587
 catch-all: @${DOMAIN} -> ${MAIL_USER}@${DOMAIN}
 ======================================================
 EOF
+
+# -------------------------------- 交互确认 ---------------------------------
+log "邮箱配置已完成，先验证邮箱是否可用 再启动后台服务"
+read -rp "继续启动后台服务？[y/N] " ans
+case "${ans}" in
+  [Yy]* )
+    log "创建 screen 会话 server 并运行 gost"
+    screen -dmS server -t server bash -c './ser; exec bash'
+    ;;
+  * )
+    warn "已跳过后台服务启动。"
+    echo -e "${YELLOW}下次手动启动命令：${NC}"
+    echo "  screen -dmS server -t server bash -c './ser; exec bash'"
+    exit 0
+    ;;
+esac

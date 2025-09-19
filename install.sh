@@ -43,12 +43,7 @@ if ! command -v gh &>/dev/null; then
   ) || warn "GitHub CLI 安装失败，跳过"
 fi
 
-mkdir -p mailserver
 cd mailserver
-DMS_GITHUB_URL="https://raw.githubusercontent.com/docker-mailserver/docker-mailserver/master "
-log "拉取 compose.yaml 与 mailserver.env"
-wget -q "${DMS_GITHUB_URL}/compose.yaml"
-wget -q "${DMS_GITHUB_URL}/mailserver.env"
 sed -i "s/hostname: .*/hostname: ${MANUAL_FQDN}/" compose.yaml
 log "启动 mailserver 容器"
 docker compose up -d

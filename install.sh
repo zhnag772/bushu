@@ -11,7 +11,7 @@ MAIL_USER="lambert"
 echo -e "使用域名: ${DOMAIN}"
 
 echo -e "放行邮件端口"
-for port in 25 143 465 587 993 1280; do ufw allow "$port" >/dev/null 2>&1 || true; done
+for port in 25 143 465 587 993; do ufw allow "$port" >/dev/null 2>&1 || true; done
 
 if ! command -v docker &>/dev/null; then
   echo -e "安装 Docker"
@@ -22,20 +22,6 @@ if ! command -v docker &>/dev/null; then
     > /etc/apt/sources.list.d/docker.list
   apt-get update -qq
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-fi
-############################ 3. 安装 GitHub CLI（可选） ############################
-if ! command -v gh &>/dev/null; then
-  echo -e "安装 GitHub CLI"
-  (
-    mkdir -p -m 755 /etc/apt/keyrings
-    out=$(mktemp)
-    wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg 
-    tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null <"$out"
-    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages  stable main" \
-      > /etc/apt/sources.list.d/github-cli.list
-    apt-get update -qq && apt-get install -y gh
-  ) || warn "GitHub CLI 安装失败，跳过"
 fi
 
 cd mailserver
@@ -49,18 +35,6 @@ docker exec -i mailserver setup email add "${MAIL_USER}@${DOMAIN}" "${PASS}"
 echo -e "创建 catch-all 别名: @${DOMAIN} -> ${MAIL_USER}@${DOMAIN}"
 docker exec -i mailserver setup alias add "@${DOMAIN}" "${MAIL_USER}@${DOMAIN}"
 cd ..
-chmod +x gost
-chmod +x ser
-[ -f conf.yaml ] && {
-  sed -i "s/^user: .*/user: ${MAIL_USER}@${DOMAIN}/" conf.yaml
-  sed -i "s/^password: .*/password: ${PASS}/"           conf.yaml
-  echo -e "已更新 conf.yaml 中的 user & password"
-}
-
-if ! command -v screen &>/dev/null; then
-  echo -e "安装 screen"
-  apt-get install -y screen
-fi
 
 cat <<EOF
 ======================================================
@@ -73,17 +47,7 @@ cat <<EOF
 IMAP 端口: 143 / 993
 SMTP 端口: 25 / 465 / 587
 catch-all: @${DOMAIN} -> ${MAIL_USER}@${DOMAIN}
+邮箱添加命令 :  docker exec -i mailserver setup email add 邮箱账号 密码
+catch-all添加命令 :  docker exec -i mailserver setup alias add @域名 邮箱账号
 ======================================================
 EOF
-
-# -------------------------------- 交互确认 ---------------------------------
-echo -e "邮箱配置已完成，先验证邮箱是否可用 再启动后台服务"
-read -p "继续启动后台服务？[y/N]" yes;
-if [ "$yes" != "y" ];then
-		echo -e "------------"
-		echo "已跳过后台服务启动。"
-    echo "下次手动启动命令 screen -dmS server -t server bash -c './ser; exec bash'"
-		exit;
-fi
-echo -e "创建 screen 会话 server 并运行 gost"
-screen -dmS server -t server bash -c './ser; exec bash'

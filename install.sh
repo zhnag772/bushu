@@ -52,21 +52,6 @@ if ! command -v docker &>/dev/null; then
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 fi
 
-# =========================
-# 设置主域名（用于容器 hostname）
-# 使用第一个域名为 FQDN
-# =========================
-MANUAL_FQDN="mail.${DOMAINS[0]}"
-echo -e "容器主机名: ${MANUAL_FQDN}"
-
-# =========================
-# 启动 mailserver
-# =========================
-cd mailserver || { echo "错误: 未找到 mailserver 目录"; exit 1; }
-
-# 安全替换 hostname 行（只匹配以 hostname 开头的行）
-sed -i "s/^[[:space:]]*hostname:[[:space:]]*.*/hostname: ${MANUAL_FQDN}/" compose.yaml
-
 echo -e "启动 mailserver 容器..."
 docker compose up -d
 sleep 10

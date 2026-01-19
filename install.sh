@@ -34,7 +34,7 @@ echo "========== 绝对清零（容器+卷+状态） =========="
 docker compose -f mailserver/compose.yaml down --volumes --remove-orphans &>/dev/null || true
 docker rm -f mailserver &>/dev/null || true
 rm -rf "${DATA_DIR:?}"/* "${STATE_DIR:?}"/*
-# config 里留空，让下面一次性容器写
+# config 留空，让下面一次性容器写
 
 ######## 用一次性容器写账号（直接写卷，而非宿主 config） ########
 echo "========== 一次性容器写账号 =========="

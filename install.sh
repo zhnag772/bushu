@@ -50,6 +50,29 @@ MANUAL_FQDN="mail.${DOMAINS[0]}"
 echo -e "容器主机名: ${MANUAL_FQDN}"
 
 # =========================
+# 提前把账号写进 config 目录，避免 120 s 超时
+# =========================
+CONFIG_DIR="${PWD}/docker-data/dms/config"
+mkdir -p "${CONFIG_DIR}"
+
+echo -e "\n预创建邮箱账户和 catch-all 别名:"
+for DOMAIN in "${DOMAINS[@]}"; do
+    EMAIL="${MAIL_USER}@${DOMAIN}"
+    # 写账号（postfixaccounts 格式：user@domain|{SHA512}密码）
+    docker run --rm \
+        -v "${CONFIG_DIR}:/tmp/docker-mailserver" \
+        -v "${PWD}/docker-data/dms/mail-data:/var/mail" \
+        mailserver/docker-mailserver:15.1.0 \
+        setup email add "${EMAIL}" "${PASS}"
+
+    # 写 catch-all 别名（alias 格式：@domain user@domain）
+    docker run --rm \
+        -v "${CONFIG_DIR}:/tmp/docker-mailserver" \
+        mailserver/docker-mailserver:15.1.0 \
+        setup alias add "@${DOMAIN}" "${EMAIL}"
+done
+
+# =========================
 # 启动 mailserver
 # =========================
 cd mailserver || { echo "错误: 未找到 mailserver 目录"; exit 1; }
@@ -59,20 +82,6 @@ sed -i "s/hostname: .*/hostname: ${MANUAL_FQDN}/" compose.yaml
 
 echo -e "启动 mailserver 容器..."
 docker compose up -d
-sleep 10
-
-# =========================
-# 为每个域名创建邮箱和别名
-# =========================
-echo -e "\n创建邮箱账户和 catch-all 别名:"
-for DOMAIN in "${DOMAINS[@]}"; do
-    EMAIL="${MAIL_USER}@${DOMAIN}"
-    echo -e "  ➕ 创建邮箱: ${EMAIL}"
-    docker exec -i mailserver setup email add ${EMAIL} ${PASS}
-
-    echo -e "  🎯 创建 catch-all: @${DOMAIN} -> ${EMAIL}"
-    docker exec -i mailserver setup alias add "@${DOMAIN}" "${EMAIL}"
-done
 
 cd ..
 

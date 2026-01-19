@@ -52,6 +52,8 @@ if ! command -v docker &>/dev/null; then
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 fi
 
+cd mailserver || { echo "错误: 未找到 mailserver 目录"; exit 1; }
+
 echo -e "启动 mailserver 容器..."
 docker compose up -d
 sleep 10

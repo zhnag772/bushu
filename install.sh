@@ -68,7 +68,7 @@ echo -e "\n创建邮箱账户和 catch-all 别名:"
 for DOMAIN in "${DOMAINS[@]}"; do
     EMAIL="${MAIL_USER}@${DOMAIN}"
     echo -e "  ➕ 创建邮箱: ${EMAIL}"
-    printf '%s\n' "${PASS}" | docker exec -i mailserver setup email add "${EMAIL}" -
+    docker exec -i mailserver setup email add ${EMAIL} ${PASS}
 
     echo -e "  🎯 创建 catch-all: @${DOMAIN} -> ${EMAIL}"
     docker exec -i mailserver setup alias add "@${DOMAIN}" "${EMAIL}"

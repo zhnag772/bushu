@@ -38,17 +38,23 @@ for port in 143 465 587 993; do
     ufw allow "$port" >/dev/null 2>&1 || true
 done
 
+# 检查 ./mailserver 目录是否存在，如果不存在则创建
+if [ ! -d "./mailserver" ]; then
+  echo "目录 ./mailserver 不存在，正在创建..."
+  mkdir -p "./mailserver"
+fi
+# 下载 compose.yaml 文件到 ./mailserver 目录
+curl -fsSL https://raw.githubusercontent.com/zhnag772/bushu/refs/heads/main/mailserver/compose.yaml -o ./mailserver/compose.yaml
+
 # =========================
 # 安装 Docker（如未安装）
 # =========================
 if ! command -v docker &>/dev/null; then
     echo -e "安装 Docker..."
-    apt-get update -qq
     apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
         > /etc/apt/sources.list.d/docker.list
-    apt-get update -qq
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 fi
 
